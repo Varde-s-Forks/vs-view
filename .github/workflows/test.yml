@@ -49,16 +49,28 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libqt6gui6t64 \
-            libqt6multimedia6 \
-            libqt6svg6 \
+            libegl1 \
+            libopengl0 \
+            libxkbcommon-x11-0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libxcb-xtest0 \
             libxcb-cursor0 \
+            libpulse0 \
             xvfb
 
       - name: Install dependencies
         run: uv sync --locked --group test --group plugins --no-dev
 
       - name: Run tests
+        env:
+          QT_DEBUG_PLUGINS: 1
         run: uv run --no-sync pytest
 
       - name: Post webhook for failure
