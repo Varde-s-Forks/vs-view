@@ -7,3 +7,8 @@
 [submodule "submodules/lucide"]
 	path = submodules/lucide
 	url = https://github.com/lucide-icons/lucide.git
+[submodule "src/kddockwidgets/submodules/KDDockWidgets"]
+	path = src/kddockwidgets/submodules/KDDockWidgets
+	url = https://github.com/KDAB/KDDockWidgets
+	branch = 2.4
+	ignore = dirty
