@@ -109,36 +109,58 @@ endfunction()
 # Python Binding Paths Configuration
 message(STATUS "Configuring Python binding components...")
 
+# Resolve package directories via Python to handle transient overlay paths (e.g. from pip/uv)
 resolve_python_package_path("shiboken6" shiboken_dir)
 resolve_python_package_path("shiboken6_generator" shiboken_gen_dir)
 resolve_python_package_path("PySide6" pyside_dir)
 
-# Platform-specific library and binary suffixes
+message(STATUS "Resolved shiboken_dir: ${shiboken_dir}")
+message(STATUS "Resolved shiboken_gen_dir: ${shiboken_gen_dir}")
+message(STATUS "Resolved pyside_dir: ${pyside_dir}")
+
+# Helper to find a file using recursive globbing
+function(find_file_robust label dir pattern out_var)
+    file(GLOB_RECURSE candidates "${dir}/${pattern}")
+    if(candidates)
+        # Prefer the shortest path (likely the most direct one)
+        list(SORT candidates)
+        list(GET candidates 0 found_file)
+        set(${out_var} "${found_file}" PARENT_SCOPE)
+        message(STATUS "Found ${label}: ${found_file}")
+    else()
+        set(${out_var} "${out_var}-NOTFOUND" PARENT_SCOPE)
+        message(STATUS "Could NOT find ${label} in ${dir} with pattern ${pattern}")
+    endif()
+endfunction()
+
+# Find libraries - use patterns that handle lib prefix and extensions
 if(WIN32)
-    set(shiboken_library "${shiboken_dir}/shiboken6.abi3.lib")
-    set(shiboken_binary "${shiboken_gen_dir}/shiboken6.exe")
-    set(pyside_library "${pyside_dir}/pyside6.abi3.lib")
-elseif(APPLE)
-    set(shiboken_library "${shiboken_dir}/libshiboken6.abi3.dylib")
-    set(shiboken_binary "${shiboken_gen_dir}/shiboken6")
-    set(pyside_library "${pyside_dir}/libpyside6.abi3.dylib")
+    find_file_robust("SHIBOKEN_LIBRARY" "${shiboken_dir}" "shiboken6*.lib" SHIBOKEN_LIBRARY_FILE)
+    find_file_robust("SHIBOKEN_BINARY" "${shiboken_gen_dir}" "shiboken6.exe" SHIBOKEN_BINARY_FILE)
+    find_file_robust("PYSIDE_LIBRARY" "${pyside_dir}" "pyside6*.lib" PYSIDE_LIBRARY_FILE)
 else()
-    set(shiboken_library "${shiboken_dir}/libshiboken6.abi3.so")
-    set(shiboken_binary "${shiboken_gen_dir}/shiboken6")
-    set(pyside_library "${pyside_dir}/libpyside6.abi3.so")
+    find_file_robust("SHIBOKEN_LIBRARY" "${shiboken_dir}" "libshiboken6*.abi3*" SHIBOKEN_LIBRARY_FILE)
+    find_file_robust("SHIBOKEN_BINARY" "${shiboken_gen_dir}" "shiboken6" SHIBOKEN_BINARY_FILE)
+    find_file_robust("PYSIDE_LIBRARY" "${pyside_dir}" "libpyside6*.abi3*" PYSIDE_LIBRARY_FILE)
+endif()
+
+# Debugging backup: if still missing, show full tree
+if(NOT SHIBOKEN_LIBRARY_FILE OR NOT SHIBOKEN_BINARY_FILE OR NOT PYSIDE_LIBRARY_FILE)
+    file(GLOB_RECURSE ALL_FILES "${shiboken_dir}/*")
+    message(STATUS "Full directory contents of ${shiboken_dir}: ${ALL_FILES}")
+    message(FATAL_ERROR "Python binding discovery failed. See logs above for file listing.")
 endif()
 
 # Export paths as cache variables for the KDDockWidgets build system
-# This handles the discovery to ensure consistency across submodules and custom scripts
 set(SHIBOKEN_DIR "${shiboken_dir}" CACHE PATH "Path to shiboken6 package")
 set(SHIBOKEN_GEN_DIR "${shiboken_gen_dir}" CACHE PATH "Path to shiboken6_generator package")
 set(PYSIDE_DIR "${pyside_dir}" CACHE PATH "Path to PySide6 package")
 
-set(SHIBOKEN_LIBRARY "${shiboken_library}" CACHE PATH "Path to shiboken6 library")
-set(SHIBOKEN_BINARY "${shiboken_binary}" CACHE PATH "Path to shiboken6 generator binary")
+set(SHIBOKEN_LIBRARY "${SHIBOKEN_LIBRARY_FILE}" CACHE PATH "Path to shiboken6 library")
+set(SHIBOKEN_BINARY "${SHIBOKEN_BINARY_FILE}" CACHE PATH "Path to shiboken6 generator binary")
 set(SHIBOKEN_INCLUDE_DIR "${shiboken_dir}/include" CACHE PATH "Path to shiboken6 headers")
 
-set(PYSIDE_LIBRARY "${pyside_library}" CACHE PATH "Path to PySide6 library")
+set(PYSIDE_LIBRARY "${PYSIDE_LIBRARY_FILE}" CACHE PATH "Path to PySide6 library")
 set(PYSIDE_INCLUDE_DIR "${pyside_dir}/include" CACHE PATH "Path to PySide6 headers")
 set(PYSIDE_TYPESYSTEMS "${pyside_dir}/typesystems" CACHE PATH "Path to PySide6 typesystem files")
 
@@ -165,6 +187,30 @@ validate_vendored_kddockwidgets("${KDDockWidgets_SOURCE_DIR}")
 
 # Build KDDockWidgets as a sub-project
 add_subdirectory("${KDDockWidgets_SOURCE_DIR}" "KDDockWidgets_build")
+
+# Post-subdirectory target fixes for Windows wheels
+# Sometimes the imported targets from PySide6Config.cmake are missing the location properties
+# on Windows when using unofficial/wheel installs.
+if(WIN32)
+    if(TARGET PySide6::pyside6)
+        get_target_property(implib PySide6::pyside6 IMPORTED_IMPLIB)
+        if(NOT implib OR implib MATCHES "NOTFOUND")
+            set_target_properties(PySide6::pyside6 PROPERTIES IMPORTED_IMPLIB "${PYSIDE_LIBRARY}")
+        endif()
+    endif()
+    if(TARGET Shiboken6::libshiboken)
+        get_target_property(implib Shiboken6::libshiboken IMPORTED_IMPLIB)
+        if(NOT implib OR implib MATCHES "NOTFOUND")
+            set_target_properties(Shiboken6::libshiboken PROPERTIES IMPORTED_IMPLIB "${SHIBOKEN_LIBRARY}")
+        endif()
+    endif()
+    if(TARGET Shiboken6::shiboken)
+        get_target_property(loc Shiboken6::shiboken IMPORTED_LOCATION)
+        if(NOT loc OR loc MATCHES "NOTFOUND")
+            set_target_properties(Shiboken6::shiboken PROPERTIES IMPORTED_LOCATION "${SHIBOKEN_BINARY}")
+        endif()
+    endif()
+endif()
 
 # Stub Generation & Installation
 find_program(

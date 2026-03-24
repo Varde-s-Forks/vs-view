@@ -47,11 +47,10 @@ version_scheme = "only-version"
 local_scheme = "no-local-version"
 
 [tool.cibuildwheel]
-build-frontend = "uv"
+build-frontend = "pip"
 build = "cp312-*"
 skip = "*-win32 *-manylinux_i686 *-musllinux_*"
 test-skip = "*"
-before-build = "pip install ninja"
 
 [tool.cibuildwheel.environment]
 CMAKE_GENERATOR = "Ninja"
