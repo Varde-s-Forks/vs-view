@@ -1,0 +1,25 @@
+PyKDDockWidgetsQt6
+Unofficial Python bindings package for KDDockWidgets
+
+This directory packages Python bindings for the upstream KDDockWidgets project.
+It includes vendored upstream source code from KDDockWidgets together with local build, packaging,
+and stub-generation glue used by the vsview project.
+
+Upstream KDDockWidgets is Copyright Klaralvdalens Datakonsult AB (KDAB)
+and remains licensed under KDAB's terms, including:
+
+- GNU General Public License v2.0 only
+- GNU General Public License v3.0 only
+- commercial licensing from KDAB
+
+See the vendored upstream source tree for the authoritative license texts, including:
+
+- submodules/KDDockWidgets/LICENSE.GPL.txt
+- submodules/KDDockWidgets/LICENSES/
+
+Contact KDAB at <info@kdab.com> for commercial licensing information regarding KDDockWidgets itself.
+
+Unless stated otherwise in a specific file header, the local packaging code in
+this directory is provided for the vsview project on an as-is basis, without
+warranty. It does not relicense, replace, or narrow the licensing that applies
+to the vendored upstream KDDockWidgets sources.

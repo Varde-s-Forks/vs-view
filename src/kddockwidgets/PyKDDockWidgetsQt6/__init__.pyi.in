@@ -1,0 +1,3 @@
+from PyKDDockWidgetsQt6 import KDDockWidgets
+
+__all__ = ["KDDockWidgets"]

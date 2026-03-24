@@ -1,0 +1,107 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.12.2",
+    "setuptools_scm[toml]>=8",
+    "pyside6==6.10.2",
+    "shiboken6==6.10.2",
+    "shiboken6-generator==6.10.2",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "PyKDDockWidgetsQt6"
+description = "Python bindings for KDDockWidgets (PySide6)"
+readme = "README.md"
+license = "GPL-2.0-only OR GPL-3.0-only"
+license-files = [
+    "LICENSE",
+    "submodules/KDDockWidgets/LICENSE.txt",
+    "submodules/KDDockWidgets/LICENSE.GPL.txt",
+    "submodules/KDDockWidgets/LICENSES/*",
+]
+authors = [{ name = "KDAB", email = "info@kdab.com" }]
+maintainers = [
+    { name = "Vardë", email = "ichunjo.le.terrible@gmail.com" },
+    { name = "Jaded Encoding Thaumaturgy", email = "jaded.encoding.thaumaturgy@gmail.com" },
+]
+requires-python = ">=3.12"
+dynamic = ["version"]
+dependencies = ["pyside6==6.10.2"]
+
+[tool.scikit-build]
+metadata.version.provider = "scikit_build_core.metadata.setuptools_scm"
+cmake.args = [
+    "-DKDDockWidgets_PYTHON_BINDINGS=ON",
+    "-DKDDockWidgets_QT6=ON",
+    "-DKDDockWidgets_EXAMPLES=OFF",
+    "-DKDDockWidgets_FRONTENDS='qtwidgets'",
+]
+cmake.source-dir = "."
+wheel.exclude = ["include/**", "lib/**", "bin/**"]
+wheel.py-api = "cp312"
+sdist.include = ["submodules/KDDockWidgets/**"]
+
+[tool.setuptools_scm]
+root = "submodules/KDDockWidgets"
+version_scheme = "only-version"
+local_scheme = "no-local-version"
+
+[tool.cibuildwheel]
+build-frontend = "uv"
+build = "cp312-*"
+skip = "*-win32 *-manylinux_i686 *-musllinux_*"
+test-skip = "*"
+before-build = "pip install ninja"
+
+[tool.cibuildwheel.environment]
+CMAKE_GENERATOR = "Ninja"
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+[tool.cibuildwheel.linux]
+archs = ["native"]
+manylinux-x86_64-image = "quay.io/pypa/manylinux_2_34_x86_64"
+manylinux-aarch64-image = "quay.io/pypa/manylinux_2_39_aarch64"
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+# "aqtinstall @ git+https://github.com/jdpurcell/aqtinstall.git@pr-qt611-winx64",
+# "aqtinstall>=3.3.0",
+
+[[tool.cibuildwheel.overrides]]
+select = "*-win_amd64"
+before-all = [
+    "pip install aqtinstall",
+    "aqt install-qt windows desktop 6.10.2 win64_msvc2022_64 --outputdir C:/opt/qt",
+]
+environment = { CMAKE_PREFIX_PATH = "C:/opt/qt/6.10.2/msvc2022_64", CMAKE_GENERATOR = "Ninja" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-manylinux_x86_64"
+before-all = [
+    "dnf install -y libxkbcommon-devel mesa-libGL-devel",
+    "pip install aqtinstall",
+    "aqt install-qt linux desktop 6.10.2 linux_gcc_64 --outputdir /opt/qt",
+]
+environment = { CMAKE_PREFIX_PATH = "/opt/qt/6.10.2/gcc_64", CMAKE_GENERATOR = "Ninja" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-manylinux_aarch64"
+before-all = [
+    "dnf install -y libxkbcommon-devel mesa-libGL-devel",
+    "pip install aqtinstall",
+    "aqt install-qt linux_arm64 desktop 6.10.2 linux_gcc_arm64 --outputdir /opt/qt",
+]
+environment = { CMAKE_PREFIX_PATH = "/opt/qt/6.10.2/gcc_arm64", CMAKE_GENERATOR = "Ninja" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_*"
+before-all = [
+    "pip install aqtinstall",
+    "sudo mkdir -p /opt/qt",
+    "sudo chown -R $USER /opt/qt",
+    "aqt install-qt mac desktop 6.10.2 clang_64 --outputdir /opt/qt",
+]
+environment = { CMAKE_PREFIX_PATH = "/opt/qt/6.10.2/macos", CMAKE_GENERATOR = "Ninja" }

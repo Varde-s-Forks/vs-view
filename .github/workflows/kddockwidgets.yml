@@ -1,0 +1,83 @@
+name: Build PyKDDockWidgetsQt6
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/kddockwidgets/**"
+      - ".github/workflows/kddockwidgets.yml"
+
+permissions:
+  contents: read
+
+env:
+  UV_NO_SYNC: "1"
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+          - os: windows-latest
+            arch: AMD64
+          - os: macos-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.4
+        with:
+          package-dir: src/kddockwidgets
+        env:
+          CIBW_ARCHS: ${{ matrix.arch }}
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build sdist
+        working-directory: src/kddockwidgets
+        run: uv build --sdist --out-dir ../../dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
