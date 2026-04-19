@@ -1,0 +1,139 @@
+name: PyApp Build
+
+on:
+  push:
+    tags:
+      - "vsview/v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VSVIEW_PYTHON_VERSION: "3.14"
+  UV_NO_SYNC: true
+  RUST_TOOLCHAIN: "1.95.0"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x86_64
+            os: windows-latest
+            target_id: windows-x86_64
+            executable_name: VSView.exe
+          - name: Linux x86_64
+            os: ubuntu-latest
+            container: quay.io/pypa/manylinux_2_34_x86_64
+            target_id: linux-x86_64
+            executable_name: VSView
+          - name: Linux aarch64
+            os: ubuntu-24.04-arm
+            container: quay.io/pypa/manylinux_2_39_aarch64
+            target_id: linux-aarch64
+            executable_name: VSView
+          - name: macOS arm64
+            os: macos-26
+            target_id: macos-arm64
+            executable_name: VSView.dmg
+          - name: macOS x86_64
+            os: macos-26-intel
+            target_id: macos-x86_64
+            executable_name: VSView.dmg
+
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || '' }}
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PyApp submodule
+        run: |
+          # Workaround for Linux containers
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git submodule update --init --recursive submodules/pyapp
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: ${{ env.VSVIEW_PYTHON_VERSION }}
+
+      - run: uv sync --package vsview-pyapp
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Resolve project source
+        id: project
+        shell: uv run python {0}
+        run: |
+          import os
+          import subprocess
+          from pathlib import Path
+
+          gh_output = os.environ["GITHUB_OUTPUT"]
+          ref = os.environ.get("GITHUB_REF", "")
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+          tag_prefix = "refs/tags/vsview/v"
+
+          # Extract version from tag, fallback for manual runs
+          version = ref.removeprefix(tag_prefix) if ref.startswith(tag_prefix) else "0.0.0-dev"
+          print(f"Version: {version}")
+
+          # For manual runs, build a wheel so PyApp embeds it directly
+          if event == "workflow_dispatch":
+              subprocess.run(["uv", "build", "--wheel", "--out-dir", "dist/wheel", "--clear"], check=True)
+              wheel_path = next(Path("dist/wheel").glob("*.whl")).resolve()
+              print(f"Wheel: {wheel_path}")
+          else:
+              wheel_path = ""
+
+          with open(gh_output, "a") as f:
+              f.write(f"version={version}\n")
+              f.write(f"wheel_path={wheel_path}\n")
+
+      - name: Build PyApp binary
+        env:
+          PYAPP_PROJECT_VERSION: ${{ steps.project.outputs.version }}
+          PYAPP_PROJECT_PATH: ${{ steps.project.outputs.wheel_path }}
+          PYAPP_WINDOWS_ICON_PATH: ${{ github.workspace }}/src/pyapp/icons/windows/vsview.ico
+        run: uv run vsapp build --env src/pyapp/.env.example
+
+      - name: Create macOS app bundle and DMG
+        if: runner.os == 'macOS'
+        run: |
+          uv run vsapp bundle dist/VSView ${{ steps.project.outputs.version }} \
+            --env src/pyapp/.env.example \
+            --iconset-dir src/pyapp/icons/macos/vsview.iconset
+
+          mkdir dmg_staging
+          ditto dist/AppBundle dmg_staging/VSView.app
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create -volname VSView -srcfolder dmg_staging -ov -format UDZO dist/VSView.dmg
+
+      - name: Package Linux distribution
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p dist/package/icons
+          cp dist/${{ matrix.executable_name }} dist/package/
+          cp src/pyapp/install.sh dist/package/
+          cp -r src/pyapp/icons/linux/* dist/package/icons/
+          chmod +x dist/package/install.sh dist/package/${{ matrix.executable_name }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: vsview-pyapp-${{ matrix.target_id }}
+          path: ${{ runner.os == 'Linux' && 'dist/package/' || format('dist/{0}', matrix.executable_name) }}
+          if-no-files-found: error

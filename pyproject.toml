@@ -158,6 +158,7 @@ explicit = true
 members = [
     "src/vspackrgb",
     "src/vsview-cli",
+    "src/pyapp",
     "src/plugins/*",
     "src/workspaces/*",
 ]
@@ -168,6 +169,7 @@ vapoursynth-fmtconv = { index = "vs-wheels" }
 vapoursynth-ffms2 = { index = "vs-wheels" }
 # Core
 vspackrgb = { workspace = true }
+vsview-pyapp = { workspace = true }
 vsview-cli = { workspace = true }
 # Toolpanels / Tooldocks
 vsview-comp = { workspace = true }
