@@ -143,10 +143,15 @@ distance = "{next_version}.dev{distance}+{vcs}{rev}"
 dirty = "{next_version}+dirty"
 distance-dirty = "{next_version}.dev{distance}+{vcs}{rev}.dirty"
 
+[[tool.uv.index]]
+name = "vs-wheels"
+url = "https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple"
+
 [tool.uv.workspace]
 members = ["src/vspackrgb", "src/vsview-cli", "src/plugins/*"]
 
 [tool.uv.sources]
+vapoursynth-fmtconv = { index = "vs-wheels" }
 vspackrgb = { workspace = true }
 vsview-cli = { workspace = true }
 vsview-fftspectrum = { workspace = true }

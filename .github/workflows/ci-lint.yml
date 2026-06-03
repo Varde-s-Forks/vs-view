@@ -18,6 +18,8 @@ permissions:
 
 env:
   UV_NO_SYNC: "1"
+  UV_INDEX: https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple
+  UV_INDEX_STRATEGY: unsafe-first-match
 
 jobs:
   lint:

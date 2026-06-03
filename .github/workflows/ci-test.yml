@@ -27,6 +27,11 @@ on:
 permissions:
   contents: read
 
+env:
+  UV_NO_SYNC: "1"
+  UV_INDEX: https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple
+  UV_INDEX_STRATEGY: unsafe-first-match
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -80,7 +85,7 @@ jobs:
       - name: Run tests
         env:
           QT_DEBUG_PLUGINS: 1
-        run: uv run ${{ steps.setup-pkg.outputs.package_arg }} --no-sync pytest
+        run: uv run ${{ steps.setup-pkg.outputs.package_arg }} pytest
 
       - name: Post webhook for failure
         if: failure()
