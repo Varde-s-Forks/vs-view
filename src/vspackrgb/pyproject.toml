@@ -109,12 +109,12 @@ dirty = "{next_version}+dirty"
 distance-dirty = "{next_version}.dev{distance}+{vcs}{rev}.dirty"
 
 [tool.cibuildwheel]
-build-frontend = { name = "build[uv]", args = ["--verbose"] }
+build-frontend = { name = "uv", args = ["--verbose"] }
 build = "cp312-*"
 skip = "*-win32 *-manylinux_i686"
 # Test would require vapoursynth
 test-skip = "*"
-before-build = "git clean -fdx src/vspackrgb"
+before-build = "git status --porcelain && git clean -fdx src/vspackrgb"
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
