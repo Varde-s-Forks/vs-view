@@ -16,7 +16,6 @@ members = [
     "vsview-fftspectrum",
     "vsview-frameprops-extended",
     "vsview-histogram",
-    "vsview-pyapp",
     "vsview-split-planes",
 ]
 
@@ -2294,6 +2293,7 @@ dev = [
     { name = "vsview-frameprops-extended" },
     { name = "vsview-histogram" },
     { name = "vsview-nativeres" },
+    { name = "vsview-pyapp" },
     { name = "vsview-split-planes" },
 ]
 doc = [
@@ -2373,6 +2373,7 @@ dev = [
     { name = "vsview-frameprops-extended", editable = "src/plugins/frameprops-extended" },
     { name = "vsview-histogram", editable = "src/plugins/histogram" },
     { name = "vsview-nativeres" },
+    { name = "vsview-pyapp", editable = "src/pyapp" },
     { name = "vsview-split-planes", editable = "src/plugins/split-planes" },
 ]
 doc = [
@@ -2547,6 +2548,7 @@ source = { editable = "src/pyapp" }
 dependencies = [
     { name = "cyclopts" },
     { name = "jetpytools" },
+    { name = "niquests" },
     { name = "python-dotenv" },
 ]
 
@@ -2554,6 +2556,7 @@ dependencies = [
 requires-dist = [
     { name = "cyclopts", specifier = ">=4.22.1" },
     { name = "jetpytools", specifier = ">=3.0.0" },
+    { name = "niquests", specifier = ">=3.21.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]
 

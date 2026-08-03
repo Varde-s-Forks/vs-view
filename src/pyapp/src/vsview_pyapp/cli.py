@@ -1,12 +1,16 @@
 import os
+import platform
 import shutil
 import subprocess
+import tarfile
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Self
+from typing import Annotated, Any, Self
 
 import dotenv
+import niquests
+from compression import zstd
 from cyclopts import App, Parameter
 from jetpytools import SPath
 from rich.console import Console
@@ -15,21 +19,41 @@ from rich.pretty import pretty_repr
 
 console = Console(stderr=True)
 
+DISTRO_URLS = {
+    (
+        "x86_64",
+        "windows",
+    ): "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+    (
+        "x86_64",
+        "linux",
+    ): "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-x86_64_v3-unknown-linux-gnu-install_only_stripped.tar.gz",
+    (
+        "aarch64",
+        "linux",
+    ): "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    (
+        "x86_64",
+        "darwin",
+    ): "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-x86_64-apple-darwin-install_only_stripped.tar.gz",
+    (
+        "aarch64",
+        "darwin",
+    ): "https://github.com/astral-sh/python-build-standalone/releases/download/20260728/cpython-3.14.6%2B20260728-aarch64-apple-darwin-install_only_stripped.tar.gz",
+}
 
-vsapp = App(
-    name="vsapp",
-    help="VSView PyApp CLI - A tool for creating a PyApp for VSView.",
-    console=console,
-)
+
+vsapp = App(name="vsapp", help="VSView PyApp CLI - A tool for creating a PyApp for VSView.", console=console)
 
 
-@vsapp.command()
+@vsapp.command
 def build(
     *,
-    output: Annotated[SPath, Parameter(alias="-o")] = SPath("dist"),
-    manifest_path: Annotated[SPath, Parameter(alias="-m")] = SPath("submodules/pyapp/Cargo.toml"),
-    env: Annotated[SPath, Parameter(alias="-e")] = SPath(".env"),
-    clean: bool = False,
+    output: SPath = SPath("dist"),
+    manifest_path: SPath = SPath("submodules/pyapp/Cargo.toml"),
+    env: SPath = SPath("src/pyapp/.env.example"),
+    offline: bool = False,
+    clear: bool = False,
     verbose: Annotated[int, Parameter(alias="-v", count=True)] = 0,
 ) -> None:
     """
@@ -39,7 +63,7 @@ def build(
         output: Directory where the final compiled binary will be placed.
         manifest_path: Path to the PyApp Cargo.toml manifest.
         env: Path to the .env file containing PyApp configuration.
-        clean: Remove existing build artifacts and run 'cargo clean' before building.
+        clear: Remove existing build artifacts and run 'cargo clean' before building.
         verbose: Increase output verbosity (can be used multiple times).
     """
     if not env.exists():
@@ -49,17 +73,26 @@ def build(
     env_vars = dotenv.dotenv_values(env, verbose=bool(verbose))
     env_vars = {k: v for k, v in env_vars.items() if v}
 
+    out_dist = SPath("dist/python-offline.tar.zst")
+    main_wheel = create_dist(out_dist=out_dist, offline=offline, quiet=not verbose)
+    main_wheel = main_wheel.resolve().to_str()
+
+    if offline:
+        env_vars["PYAPP_PROJECT_PATH"] = main_wheel
+        env_vars["PYAPP_DISTRIBUTION_PYTHON_PATH"] = "python/python.exe" if os.name == "nt" else "python/bin/python3"
+        env_vars["PYAPP_DISTRIBUTION_PATH"] = out_dist.resolve().to_str()
+        env_vars["PYAPP_DISTRIBUTION_EMBED"] = "true"
+        env_vars["PYAPP_SKIP_INSTALL"] = "true"
+    else:
+        env_vars["PYAPP_PROJECT_PATH"] = main_wheel
+        env_vars["PYAPP_PIP_EXTRA_ARGS"] = (
+            "--extra-index-url https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple"
+        )
+
     # Resolve paths to absolute to prevent issues with Cargo build-script CWD
-    path_vars = [
-        "PYAPP_WINDOWS_ICON_PATH",
-        "PYAPP_PROJECT_PATH",
-        "PYAPP_PROJECT_DEPENDENCY_FILE",
-        "PYAPP_DISTRIBUTION_PATH",
-    ]
-    for var in path_vars:
-        if path_str := env_vars.get(var):
-            path = SPath(path_str)
-            if path.exists():
+    for var in ["PYAPP_WINDOWS_ICON_PATH", "PYAPP_PROJECT_PATH", "PYAPP_DISTRIBUTION_PATH"]:
+        if path_str := (env_vars | dict(os.environ)).get(var):
+            if (path := SPath(path_str)).exists():
                 env_vars[var] = path.resolve().to_str()
             else:
                 console.print(f"[yellow]{var} path {path_str} does not exist, skipping...[/yellow]")
@@ -74,7 +107,7 @@ def build(
         )
     )
 
-    env_vars = dict(os.environ) | env_vars
+    env_vars = env_vars | dict(os.environ)
 
     def cargo_cmd(action: str) -> list[str]:
         cmd = ["cargo", action, "-r", "--manifest-path", str(manifest_path)]
@@ -82,7 +115,7 @@ def build(
             cmd.append("-" + "v" * verbose)
         return cmd
 
-    if clean:
+    if clear:
         console.print("Running Cargo clean...")
         subprocess.run(cargo_cmd("clean"), env=env_vars, check=True)
 
@@ -108,12 +141,123 @@ def build(
         raise SystemExit(1)
 
 
-@vsapp.command()
+@vsapp.command
+def create_dist(
+    *,
+    main_dir: SPath = SPath("dist"),
+    plugins_dir: SPath = SPath("dist/plugins"),
+    offline: bool = False,
+    out_dist: SPath = SPath("dist/python-offline.tar.zst"),
+    quiet: bool = True,
+) -> SPath:
+    """
+    Create distribution wheels and optional offline Python distribution archive.
+
+    Args:
+        main_dir: Output directory for main wheel.
+        plugins_dir: Output directory for plugin wheels and dependencies.
+        offline: Prepare full offline Python distribution archive.
+        out_dist: Output path for the offline distribution archive.
+
+    Returns:
+        main_wheel
+
+    """
+    q = ["--quiet" if quiet else ""]
+    console.print("Building main wheel...")
+    if main_dir.exists():
+        main_dir.rmdirs()
+    main_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["uv", "build", "--wheel", "--out-dir", main_dir, *q], check=True)
+
+    main_wheel = next(SPath(main_dir).glob("*.whl")).resolve()
+
+    if not offline:
+        return main_wheel
+
+    console.print("Building plugins wheels...")
+    if plugins_dir.exists():
+        plugins_dir.rmdirs()
+    plugins_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(["uv", "build", "--out-dir", plugins_dir, "--all-packages", *q], check=True)
+    except subprocess.CalledProcessError as e:
+        print(e.stdout)
+        print(e.stderr)
+        raise
+    for dist in plugins_dir.glob("*.tar.gz"):
+        dist.unlink()
+
+    url = DISTRO_URLS[get_target()]
+    build_dir = SPath("build/offline_prep")
+    if build_dir.exists():
+        build_dir.rmdirs()
+    build_dir.mkdir(parents=True)
+
+    console.print(f"Downloading Python standalone distribution from {url}...")
+    response = niquests.get(url, stream=True).raise_for_status()
+
+    archive_name = build_dir / "cpython_standalone.tar.gz"
+    with archive_name.open("wb") as f:
+        f.writelines(response.iter_content(chunk_size=65536))
+
+    console.print("Extracting Python standalone distribution...")
+    with tarfile.open(archive_name, "r:gz") as tar:
+        tar.extractall(path=build_dir)
+
+    if not (python_dir := build_dir / "python").exists():
+        raise RuntimeError("Extracted archive did not contain top-level 'python' directory")
+
+    python_exe = python_dir / "python.exe" if os.name == "nt" else python_dir / "bin" / "python3"
+
+    if not [*Path(main_dir).resolve().glob("*.whl"), *Path(plugins_dir).resolve().glob("*.whl")]:
+        raise RuntimeError("No wheels found to install into offline distribution")
+
+    console.print("Installing wheels into Python distribution...")
+    install_cmd: list[Any] = [
+        "uv",
+        "pip",
+        "install",
+        "--python",
+        python_exe,
+        "--find-links",
+        main_dir.resolve(),
+        "--find-links",
+        plugins_dir.resolve(),
+        "--extra-index-url",
+        "https://jaded-encoding-thaumaturgy.github.io/vs-wheels/simple",
+        main_wheel,
+        "vsview-nativeres",
+        *q,
+    ]
+    subprocess.run(install_cmd, check=True)
+
+    out_dist_path = out_dist.resolve()
+    out_dist_path.parent.mkdir(parents=True, exist_ok=True)
+
+    console.print(f"Packaging offline distribution to {out_dist_path} with zstd...")
+
+    options: dict[int, int] = {
+        zstd.CompressionParameter.compression_level: 20,
+        zstd.CompressionParameter.nb_workers: os.cpu_count() or 4,
+    }
+    with zstd.open(out_dist_path, "wb", options=options) as zf, tarfile.open(fileobj=zf, mode="w") as tar:
+        tar.add(python_dir, arcname="")
+
+    console.print(f"[bold green]Successfully generated offline distribution at {out_dist_path}[/bold green]")
+    if gh_output := os.environ.get("GITHUB_OUTPUT"):
+        with open(gh_output, "a") as f:
+            f.write(f"offline-distribution-path={out_dist_path}\n")
+
+    return main_wheel
+
+
+@vsapp.command
 def icon(
     source: SPath = SPath("src/vsview/assets/icon@4x.png"),
     *,
     output: Annotated[SPath, Parameter(alias="-o")] = SPath("build/icons"),
-    clean: bool = True,
+    clear: bool = False,
 ) -> None:
     """
     Generate icon sets.
@@ -121,7 +265,7 @@ def icon(
     Args:
         source: Source image for icon generation.
         output: Target directory for the generated Icon assets.
-        clean: Remove existing contents from the output directory before generation.
+        clear: Remove existing contents from the output directory before generation.
     """
     if not source.exists():
         console.print(f"[bold red]Error:[/bold red] Source image {source!r} does not exist.")
@@ -131,8 +275,8 @@ def icon(
 
     output = output.resolve()
 
-    if clean:
-        console.print("Cleaning output directory...")
+    if clear:
+        console.print("clearing output directory...")
         output.rmdirs(missing_ok=True, ignore_errors=True)
 
     (windows_dir := output / "windows").mkdir(parents=True, exist_ok=True)
@@ -249,16 +393,16 @@ class ImageMagick:
         subprocess.run([*self.convert_cmd, *args], check=True)
 
 
-@vsapp.command()
+@vsapp.command
 def bundle(
     source: SPath,
     version: str,
     *,
     output: Annotated[SPath, Parameter(alias="-o")] = SPath("dist/AppBundle"),
-    iconset_dir: SPath = SPath("build/icons/macos/vsview.iconset"),
-    env: Annotated[SPath, Parameter(alias="-e")] = SPath(".env"),
+    iconset_dir: SPath = SPath("src/pyapp/icons/macos/vsview.iconset"),
+    env: Annotated[SPath, Parameter(alias="-e")] = SPath("src/pyapp/.env.example"),
     bundle_id: str = "io.github.jaded-encoding-thaumaturgy.vsview",
-    clean: bool = True,
+    clear: bool = False,
 ) -> None:
     """
     Create app bundle for macOS.
@@ -270,7 +414,7 @@ def bundle(
         iconset_dir: Source directory containing Iconset assets for Macintosh icons.
         env: Environment file.
         bundle_id: Reverse-DNS style bundle identifier.
-        clean: Remove existing contents from the output directory before bundling.
+        clear: Remove existing contents from the output directory before bundling.
     """
     if not source.exists():
         console.print(f"[bold red]Error:[/bold red] Source binary {source!r} does not exist.")
@@ -285,7 +429,7 @@ def bundle(
     resources_dir = contents_dir / "Resources"
     icns_dir = iconset_dir.parent / "vsview.icns"
 
-    if clean:
+    if clear:
         contents_dir.rmdirs(missing_ok=True, ignore_errors=True)
         icns_dir.unlink(missing_ok=True)
 
@@ -322,6 +466,20 @@ def write_info_plist(path: Path, app_name: str, version: str, bundle_id: str) ->
         "NSPrincipalClass": "NSApplication",
     }
     path.write_bytes(plistlib.dumps(payload))
+
+
+def get_target() -> tuple[str, str]:
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+
+    if machine in ("x86_64", "amd64"):
+        arch = "x86_64"
+    elif machine in ("aarch64", "arm64"):
+        arch = "aarch64"
+    else:
+        raise ValueError(f"Unsupported architecture: {machine}")
+
+    return arch, system
 
 
 if __name__ == "__main__":
