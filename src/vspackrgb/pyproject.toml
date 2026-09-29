@@ -84,7 +84,7 @@ dirty = "{next_version}+dirty"
 distance-dirty = "{next_version}.dev{distance}+{vcs}{rev}.dirty"
 
 [tool.cibuildwheel]
-build-frontend = "build[uv]"
+build-frontend = "uv"
 build = ["cp312-*", "cp315t-*"]
 skip = "*-win32 *-manylinux_i686"
 test-groups = ["dev"]
