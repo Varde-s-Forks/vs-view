@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import threading
 from dataclasses import dataclass
 from functools import partial
 from logging import getLogger
@@ -56,6 +57,7 @@ class GraphPlugin(WidgetPluginBase[GraphSettings, None]):
         self._graph_cache = dict[int, CachedGraph]()
         self._sent_key: int | None = None
         self._last_sent_timings = dict[str, int]()
+        self._load_lock = threading.Lock()
 
         self._load_ready = False
 
@@ -415,30 +417,31 @@ class GraphPlugin(WidgetPluginBase[GraphSettings, None]):
         self.api.statusMessage.emit(f"Saved dependency graph to {selected}")
 
     def _load_graph(self, *, refresh: bool = False) -> CachedGraph | None:
-        key = fallback(self._selected_idx, self.api.current_voutput.vs_index)
+        with self._load_lock:
+            key = fallback(self._selected_idx, self.api.current_voutput.vs_index)
 
-        if refresh:
-            self._graph_cache.pop(key, None)
+            if refresh:
+                self._graph_cache.pop(key, None)
 
-        if (cached := self._graph_cache.get(key)) is not None:
+            if (cached := self._graph_cache.get(key)) is not None:
+                return cached
+
+            clip = next(
+                (v.vs_output.clip for v in self.api.voutputs if v.vs_index == self._selected_idx),
+                self.api.current_voutput.vs_output.clip,
+            )
+
+            with self.api.vs_context():
+                try:
+                    graph = vsgraph.get_graph(clip)
+                    cached = CachedGraph(graph=graph, payload=enrich_cytoscape_payload(graph, graph.to_cytoscape()))
+                except Exception as e:
+                    logger.error("Failed to extract graph from clip: %s", e)
+                    logger.debug("", exc_info=e)
+                    return None
+
+            self._graph_cache[key] = cached
             return cached
-
-        clip = next(
-            (v.vs_output.clip for v in self.api.voutputs if v.vs_index == self._selected_idx),
-            self.api.current_voutput.vs_output.clip,
-        )
-
-        with self.api.vs_context():
-            try:
-                graph = vsgraph.get_graph(clip)
-                cached = CachedGraph(graph=graph, payload=enrich_cytoscape_payload(graph, graph.to_cytoscape()))
-            except Exception as e:
-                logger.error("Failed to extract graph from clip: %s", e)
-                logger.debug("", exc_info=e)
-                return None
-
-        self._graph_cache[key] = cached
-        return cached
 
     @run_in_background(name="CopyImage")
     def _copy_image(self, data_base64: str) -> None:
