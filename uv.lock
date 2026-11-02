@@ -14,6 +14,7 @@ members = [
     "vsview-editor",
     "vsview-fftspectrum",
     "vsview-frameprops-extended",
+    "vsview-graph",
     "vsview-histogram",
     "vsview-remote",
     "vsview-split-planes",
@@ -2595,6 +2596,22 @@ wheels = [
 ]
 
 [[package]]
+name = "vapoursynth-graph"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "vapoursynth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a5/8f/3a6becd2a305482f5b4caf2b8bfdab3e25ed5f1fa319658661e017c3dcc8/vapoursynth_graph-1.0.1.tar.gz", hash = "sha256:6c3bd3089c536ea4d6af795912c94b9e5041cf1f09f3df893019347e1fb492e8", size = 38519, upload-time = "2026-11-02T20:07:55.988Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/70/ce1c355e4bfdbfeaefbe7fc1a6d1b85ad5fcb2153280e5db72e0964f1566/vapoursynth_graph-1.0.1-py3-none-macosx_13_0_arm64.whl", hash = "sha256:6035561cda16de5d93e29ba0cac5c804b6d92c7071a016aa57c42f37e3d2115e", size = 190412, upload-time = "2026-11-02T20:07:48.433Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/ee/e1050fa106632870e80955e0928aac57f2cee280b692c8235e005991c037/vapoursynth_graph-1.0.1-py3-none-macosx_13_0_x86_64.whl", hash = "sha256:e1713fa7998cecac36c46f6386a4aa31d0ed6a7f4a44f9e326e475e7cd17295c", size = 383603, upload-time = "2026-11-02T20:07:49.943Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/d8/25b8deee52a49e98270749064e150a95b546a096f88b9ee1a2dd6f44e2a0/vapoursynth_graph-1.0.1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:29633eb614039f4fc1cc1d9bb3d0feeb50849641332380097dab4dcb7635bee6", size = 195517, upload-time = "2026-11-02T20:07:51.495Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/18/c7c9305284be4e2a7e784845e7c2414e54ae8f63204c852d556dd4649b55/vapoursynth_graph-1.0.1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:a9bb5bfd31ad192639cb5a9c057f05afb75e66373dd827a1eff04163e1a35f52", size = 580010, upload-time = "2026-11-02T20:07:53.002Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/45/0356fef765c0e72617c9a035ff8ae824a8d4fe744acd2344504b6a7b27ff/vapoursynth_graph-1.0.1-py3-none-win_amd64.whl", hash = "sha256:0a39077437c4ae5febcbd6a707adf034fd6efefc252dcdd95091d291f20f72f7", size = 319122, upload-time = "2026-11-02T20:07:54.437Z" },
+]
+
+[[package]]
 name = "vapoursynth-lsmas"
 version = "1310.0.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2848,6 +2865,7 @@ full = [
     { name = "vsview-editor" },
     { name = "vsview-fftspectrum" },
     { name = "vsview-frameprops-extended" },
+    { name = "vsview-graph" },
     { name = "vsview-histogram" },
     { name = "vsview-nativeres" },
     { name = "vsview-remote" },
@@ -2885,6 +2903,7 @@ dev = [
     { name = "vsview-editor" },
     { name = "vsview-fftspectrum" },
     { name = "vsview-frameprops-extended" },
+    { name = "vsview-graph" },
     { name = "vsview-histogram" },
     { name = "vsview-nativeres" },
     { name = "vsview-pyapp" },
@@ -2904,6 +2923,7 @@ plugins = [
     { name = "vsview-editor" },
     { name = "vsview-fftspectrum" },
     { name = "vsview-frameprops-extended" },
+    { name = "vsview-graph" },
     { name = "vsview-histogram" },
     { name = "vsview-nativeres" },
     { name = "vsview-remote" },
@@ -2943,6 +2963,7 @@ requires-dist = [
     { name = "vsview-fftspectrum", marker = "extra == 'recommended'", editable = "src/plugins/fftspectrum" },
     { name = "vsview-frameprops-extended", marker = "extra == 'full'", editable = "src/plugins/frameprops-extended" },
     { name = "vsview-frameprops-extended", marker = "extra == 'recommended'", editable = "src/plugins/frameprops-extended" },
+    { name = "vsview-graph", marker = "extra == 'full'", editable = "src/plugins/graph" },
     { name = "vsview-histogram", marker = "extra == 'full'", editable = "src/plugins/histogram" },
     { name = "vsview-nativeres", marker = "extra == 'full'" },
     { name = "vsview-remote", marker = "extra == 'full'", editable = "src/workspaces/remote" },
@@ -2973,6 +2994,7 @@ dev = [
     { name = "vsview-editor", editable = "src/workspaces/editor" },
     { name = "vsview-fftspectrum", editable = "src/plugins/fftspectrum" },
     { name = "vsview-frameprops-extended", editable = "src/plugins/frameprops-extended" },
+    { name = "vsview-graph", editable = "src/plugins/graph" },
     { name = "vsview-histogram", editable = "src/plugins/histogram" },
     { name = "vsview-nativeres" },
     { name = "vsview-pyapp", editable = "src/pyapp" },
@@ -2990,6 +3012,7 @@ plugins = [
     { name = "vsview-editor", editable = "src/workspaces/editor" },
     { name = "vsview-fftspectrum", editable = "src/plugins/fftspectrum" },
     { name = "vsview-frameprops-extended", editable = "src/plugins/frameprops-extended" },
+    { name = "vsview-graph", editable = "src/plugins/graph" },
     { name = "vsview-histogram", editable = "src/plugins/histogram" },
     { name = "vsview-nativeres" },
     { name = "vsview-remote", editable = "src/workspaces/remote" },
@@ -3079,6 +3102,20 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "vsjetpack", specifier = ">=2.1.1" },
+    { name = "vsview", editable = "." },
+]
+
+[[package]]
+name = "vsview-graph"
+source = { editable = "src/plugins/graph" }
+dependencies = [
+    { name = "vapoursynth-graph" },
+    { name = "vsview" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "vapoursynth-graph", specifier = ">=1.0.1" },
     { name = "vsview", editable = "." },
 ]
 
